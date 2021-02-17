@@ -1,20 +1,33 @@
 from IPython.display import display,clear_output
 from ipywidgets import widgets, interact, Output
-from read_lif import Reader
+from read_lif import Reader, Images
 import pandas as pd
 import numpy as np
 
 class Select:
-    def __init__(self,data):
+    def __init__(self,data, params):
         self.data = data
-        reader = Reader(self.data)
-        self.files = reader.getSerieInfo()
-        assert len(self.files) != 0, 'Lif file is empty'
-        self.output_widget = widgets.Output()
-        self.widget = widgets.VBox()
-        self.selection = None
-        self.main()
-        self.display(self.selection)
+        self.which = params['which']
+        self.initial = params['initial']
+        self.nz = params['nz']
+        self.edge_cut = params['edge_cut']
+
+        if self.which == 'Lif':
+            assert '.lif' in self.data, ('Input format does not correspond to a lif file')
+            reader = Reader(self.data)
+            self.files = reader.getSerieInfo()
+            assert len(self.files) != 0, 'Lif file is empty'
+            self.output_widget = widgets.Output()
+            self.widget = widgets.VBox()
+            self.selection = None
+            self.main()
+            self.display_lif(self.selection)
+        elif self.which == 'Images':
+            self.fmt = params['fmt']
+            assert self.fmt in self.data, ('Input format does not correspond to a tiff file')
+            imgs = Images(self.data, self.initial,self.nz,self.edge_cut)
+            self.xyz = imgs.read_images()
+            self.display_tiff()
 
     def main(self):
         self.options = []
@@ -39,7 +52,7 @@ class Select:
         self.selection = self.options.index(self.series.value)
         self.display(self.selection)
 
-    def display(self,selection):
+    def display_lif(self,selection):
         info = pd.DataFrame(np.nan,index=[],columns=['Filename','Dimensions','X','Y','Z','Channels'])
         if selection != None:
             clear_output()
@@ -55,12 +68,22 @@ class Select:
             info['Channels'] = chs
             display(info.head())
 
+    def display_tiff(self):
+        info = pd.DataFrame(np.nan,index=[],columns=['X','Y','Z'])
+        info.at[0,'X'] = self.xyz.shape[0]
+        info.at[0,'Y'] = self.xyz.shape[1]
+        info.at[0,'Z'] = self.xyz.shape[2]
+        display(info.head())
+
+    def return_tiff(self):
+        return self.xyz
+
 
 class MainMenu:
     '''
     Generates interactive menu of the main tracking options
     '''
-    def __init__(self,media = 'Lif'):
+    def __init__(self,media = 'Tiff'):
         self.media = media
         self.output_widget = widgets.Output()
         self.options = widgets.VBox()
@@ -78,7 +101,7 @@ class MainMenu:
 
         self.initial_frame = widgets.IntText(description='Initial frame')
 
-        self.nframes = widgets.IntText(description='No. Frames',value = 5)
+        self.nframes = widgets.IntText(description='Z Frames',value = 5)
 
         self.k = widgets.FloatSlider(min = 1,max = 10,step = 0.2,description = 'k (Blur)',value = 1.6)
 
@@ -127,37 +150,22 @@ def return_params(options):
     '''
     o = [(options[i].value) for i in range(len(options)-1)]
     p = {}
-    if o[1] == 'multi':
-        p['media'] = o[0]
-        p['mode'] = o[1]
-        p['fmt'] = o[2]
-        p['nframes'] = o[3]
-        p['initial_frame'] = o[4]
-        p['which_single'] = 0
-        p['diameter'] = o[5]
-        p['lpfilter'] = o[6]
-        p['bgavg'] = o[7]
-        p['masscut'] = o[8]
-        p['minbright'] = o[9]
-        p['frame_rate'] = o[10]
-        p['edge_cutoff'] = o[11]
-        p['plot'] = o[12]
+    if o[0] == 'Lif':
+        p['which']      = o[0]
+        p['nz']         = o[1]
+        p['initial']    = o[2]
+        p['blur']       = o[3]
+        p['edge_cut']   = o[4]
+        p['plot']       = o[5]
         return p
-    if o[1] == 'single':
-        p['media'] = o[0]
-        p['mode'] = o[1]
-        p['fmt'] = o[2]
-        p['nframes'] = 0
-        p['initial_frame'] = 0
-        p['which_single'] = o[3]
-        p['diameter'] = o[4]
-        p['lpfilter'] = o[5]
-        p['bgavg'] = o[6]
-        p['masscut'] = o[7]
-        p['minbright'] = o[8]
-        p['frame_rate'] = 0
-        p['edge_cutoff'] = o[9]
-        p['plot'] = o[10]
+    if o[0] == 'Images':
+        p['which']      = o[0]
+        p['fmt']        = o[1]
+        p['nz']         = o[2]
+        p['initial']    = o[3]
+        p['blur']       = o[4]
+        p['edge_cut']   = o[5]
+        p['plot']       = o[6]
         return p
 
 def interacetive_menu():

@@ -61,6 +61,7 @@ import xml
 from xml.dom.minidom import parse
 import numpy as np
 import warnings
+from PIL import Image
 
 dimName = {1: "X",
            2: "Y",
@@ -74,6 +75,32 @@ dimName = {1: "X",
 
 channelTag = ["Gray", "Red", "Green", "Blue"]
 
+class Images:
+    '''
+    Method: reads tiff image sequences from confocal / STED microscopy
+    Args:
+        img             : the tiff image sequence
+        initial_frame   : starting snap for the output sequence
+        zsteps          : (int) the amount of images in the z-direction
+        cut_px          : (int) number of pixels to remove from the edges on the xy-projection
+    '''
+    def __init__(self, data,initial_frame,zsteps,cut_px):
+        self.data = data
+        self.initial = int(initial_frame)
+        self.zsteps = int(zsteps)
+        self.cut_px = int(cut_px)
+
+    def read_images(self):
+        img_obj = Image.open(self.data)
+        zxy = []
+
+        for i in range(img_obj.n_frames):
+            img_obj.seek(i)
+            zxy.append(np.array(img_obj.convert('L')))
+        zxy = np.array(zxy)
+        xyz = np.moveaxis(zxy, 0, -1)
+        xyz = xyz[self.cut_px : xyz.shape[0]-self.cut_px, self.cut_px : xyz.shape[1]-self.cut_px,  self.initial : self.initial + self.zsteps]
+        return xyz
 
 class Header:
     """
